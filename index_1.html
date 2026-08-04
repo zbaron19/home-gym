@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#14171C" />
+<title>The Home Gym</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127947;</text></svg>" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>html,body{margin:0;background:#14171C}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ============================================================
+   THE HOME GYM — 30-minute workout generator
+   Equipment: adjustable DBs (5–50), bench, ab wheel, pull-up bar,
+   bands, bodyweight. Profiles + history in this browser (localStorage).
+   ============================================================ */
+
+// ---------- Exercise library (from quarantine PDF + app history) ----------
+// eq: bw = bodyweight, db = dumbbells, bench, bar = pull-up bar, wheel = ab wheel, band
+// focus: upper, lower, core, cardio
+// seed = suggested starting DB weight (lb) from workout history screenshots
+const EXERCISES = [
+  // ----- UPPER / strength -----
+  { n: "DB Bench Press", eq: ["db", "bench"], focus: "upper", str: true, seed: 45 },
+  { n: "Alternating DB Bench Press", eq: ["db", "bench"], focus: "upper", str: true, seed: 40 },
+  { n: "Chest Fly (DB)", eq: ["db", "bench"], focus: "upper", str: true, seed: 35 },
+  { n: "Bent Over Row (DB)", eq: ["db"], focus: "upper", str: true, seed: 20 },
+  { n: "Hammer Curl (DB)", eq: ["db"], focus: "upper", str: true, seed: 30 },
+  { n: "Bicep Curl (DB)", eq: ["db"], focus: "upper", str: true, seed: 25 },
+  { n: "Lateral Raise (DB)", eq: ["db"], focus: "upper", str: true, seed: 15 },
+  { n: "Reverse Fly (DB)", eq: ["db"], focus: "upper", str: true, seed: 15 },
+  { n: "Overhead Press (DB)", eq: ["db"], focus: "upper", str: true, seed: 30 },
+  { n: "Skullcrusher (DB)", eq: ["db", "bench"], focus: "upper", str: true, seed: 22.5 },
+  { n: "Tricep Kickback (DB)", eq: ["db"], focus: "upper", str: true, seed: 15 },
+  { n: "Push Up", eq: ["bw"], focus: "upper", str: true },
+  { n: "Incline Push Up (bench)", eq: ["bench"], focus: "upper", str: true },
+  { n: "Decline Push Up (bench)", eq: ["bench"], focus: "upper", str: true },
+  { n: "Pull Up", eq: ["bar"], focus: "upper", str: true },
+  { n: "Wide Pull Up", eq: ["bar"], focus: "upper", str: true },
+  { n: "Chin Up", eq: ["bar"], focus: "upper", str: true },
+  { n: "Tricep Dips (bench)", eq: ["bench"], focus: "upper", str: true },
+  { n: "Pike Push Up", eq: ["bw"], focus: "upper", str: true },
+  { n: "Push Up → DB Row", eq: ["db"], focus: "upper", str: true, seed: 25 },
+  { n: "Upright Row (DB)", eq: ["db"], focus: "upper", str: true, seed: 25 },
+
+  // ----- LOWER / strength -----
+  { n: "Goblet Squat (DB)", eq: ["db"], focus: "lower", str: true, seed: 40 },
+  { n: "Split Squat (DB)", eq: ["db"], focus: "lower", str: true, seed: 20 },
+  { n: "Rear-Foot-Elevated Split Squat", eq: ["db", "bench"], focus: "lower", str: true, seed: 20 },
+  { n: "DB Deep Squat + Press", eq: ["db"], focus: "lower", str: true, seed: 10 },
+  { n: "Glute Bridge (DB on hips)", eq: ["db"], focus: "lower", str: true, seed: 25 },
+  { n: "Hip Thrust (back on bench)", eq: ["db", "bench"], focus: "lower", str: true, seed: 25 },
+  { n: "Romanian Deadlift (DB)", eq: ["db"], focus: "lower", str: true, seed: 40 },
+  { n: "Single-Leg Deadlift (DB)", eq: ["db"], focus: "lower", str: true, seed: 20 },
+  { n: "Walking Lunge (DB)", eq: ["db"], focus: "lower", str: true, seed: 20 },
+  { n: "Reverse Lunge + Elbow-to-Ground Touch", eq: ["bw"], focus: "lower", str: true },
+  { n: "Bench Step-Ups (DB)", eq: ["db", "bench"], focus: "lower", str: true, seed: 20 },
+  { n: "Single-Leg Squat (to bench)", eq: ["bench"], focus: "lower", str: true },
+  { n: "Copenhagen Abduction", eq: ["bench"], focus: "lower", str: true },
+  { n: "Single-Leg Calf Raise", eq: ["bw"], focus: "lower", str: true },
+  { n: "Sumo Squat (DB)", eq: ["db"], focus: "lower", str: true, seed: 40 },
+  { n: "Good Mornings (DB)", eq: ["db"], focus: "lower", str: true, seed: 25 },
+  { n: "Wall Sit", eq: ["bw"], focus: "lower", str: true },
+  { n: "DB Kettlebell-Style Swing", eq: ["db"], focus: "lower", str: true, seed: 30 },
+
+  // ----- CORE -----
+  { n: "Ab Wheel Rollout", eq: ["wheel"], focus: "core", str: true },
+  { n: "Plank", eq: ["bw"], focus: "core" },
+  { n: "Side Plank (L)", eq: ["bw"], focus: "core" },
+  { n: "Side Plank (R)", eq: ["bw"], focus: "core" },
+  { n: "Side Plank + Leg Lift", eq: ["bw"], focus: "core" },
+  { n: "Russian Twists (DB)", eq: ["db"], focus: "core", seed: 15 },
+  { n: "Dead Bug", eq: ["bw"], focus: "core" },
+  { n: "V-Sits", eq: ["bw"], focus: "core" },
+  { n: "V-Hold", eq: ["bw"], focus: "core" },
+  { n: "Reverse Crunch", eq: ["bw"], focus: "core" },
+  { n: "Bicycle Crunch", eq: ["bw"], focus: "core" },
+  { n: "Scissors", eq: ["bw"], focus: "core" },
+  { n: "Superman", eq: ["bw"], focus: "core" },
+  { n: "Toe Crunch", eq: ["bw"], focus: "core" },
+  { n: "Hanging Leg Raise (bar)", eq: ["bar"], focus: "core", str: true },
+  { n: "Hanging Knee Raise (bar)", eq: ["bar"], focus: "core", str: true },
+  { n: "Plank Up-Downs", eq: ["bw"], focus: "core" },
+  { n: "Mountain Climber Twists", eq: ["bw"], focus: "core" },
+  { n: "Alternate Hand-Toe Touches", eq: ["bw"], focus: "core" },
+  { n: "Leg Swipes", eq: ["bw"], focus: "core" },
+  { n: "Flutter Kicks", eq: ["bw"], focus: "core" },
+  { n: "Heel Taps", eq: ["bw"], focus: "core" },
+  { n: "Cross-Body Extensions", eq: ["bw"], focus: "core" },
+  { n: "Plank Shoot-Throughs", eq: ["bw"], focus: "core" },
+
+  // ----- CARDIO / conditioning -----
+  { n: "Burpees", eq: ["bw"], focus: "cardio" },
+  { n: "Half Burpees", eq: ["bw"], focus: "cardio" },
+  { n: "Reverse Burpee", eq: ["bw"], focus: "cardio" },
+  { n: "Jumping Jacks", eq: ["bw"], focus: "cardio" },
+  { n: "Star Jumps", eq: ["bw"], focus: "cardio" },
+  { n: "High Knees", eq: ["bw"], focus: "cardio" },
+  { n: "Butt Kicks", eq: ["bw"], focus: "cardio" },
+  { n: "Squat Jumps", eq: ["bw"], focus: "cardio" },
+  { n: "Squat Jump w/ Half Turn", eq: ["bw"], focus: "cardio" },
+  { n: "Tuck Jumps", eq: ["bw"], focus: "cardio" },
+  { n: "Split Jumps (Pyro Lunges)", eq: ["bw"], focus: "cardio" },
+  { n: "Skaters", eq: ["bw"], focus: "cardio" },
+  { n: "Mountain Climbers", eq: ["bw"], focus: "cardio" },
+  { n: "Inchworm → Push Up", eq: ["bw"], focus: "cardio" },
+  { n: "Bench Box Jumps", eq: ["bench"], focus: "cardio" },
+  { n: "Long Jumps", eq: ["bw"], focus: "cardio" },
+  { n: "Frog Jumps", eq: ["bw"], focus: "cardio" },
+  { n: "Bear Crawls", eq: ["bw"], focus: "cardio" },
+  { n: "Crab Walks", eq: ["bw"], focus: "cardio" },
+  { n: "Football Fast Feet → Burpee", eq: ["bw"], focus: "cardio" },
+  { n: "Toe Taps (bench/step)", eq: ["bench"], focus: "cardio" },
+  { n: "Side Shuffles", eq: ["bw"], focus: "cardio" },
+  { n: "Sprints in Place", eq: ["bw"], focus: "cardio" },
+  { n: "Plank Jacks", eq: ["bw"], focus: "cardio" },
+];
+
+const FOCI = [
+  { id: "auto", label: "Automatic", sub: "Surprise me — balanced full body" },
+  { id: "upper", label: "Upper Body", sub: "Chest · back · arms · shoulders" },
+  { id: "lower", label: "Lower Body", sub: "Quads · glutes · hamstrings" },
+  { id: "core", label: "Core", sub: "Abs · obliques · low back" },
+  { id: "cardio", label: "Cardio", sub: "Conditioning · sweat" },
+];
+
+const MODES = [
+  { id: "strength", label: "Strength", sub: "Sets & reps · 1 min rest · log your weights" },
+  { id: "hiit", label: "HIIT", sub: "45s on / 15s off · 3 rounds · your quarantine format" },
+];
+
+// ---------- helpers ----------
+const shuffle = (a) => {
+  const arr = [...a];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const todayStr = () => new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+// ============================================================
+// VISUAL DEMOS — animated 2-frame stick figures (chalk style)
+// frame = { head:[x,y], lines:[[x1,y1,x2,y2],...], dots:[[x,y]], props:[[x1,y1,x2,y2]], circles:[[x,y,r]] }
+// viewBox 0 0 120 100, ground ≈ y 90
+// ============================================================
+const STAND = {
+  head: [60, 16],
+  lines: [
+    [60, 23, 60, 52],
+    [60, 31, 50, 46],
+    [60, 31, 70, 46],
+    [60, 52, 55, 70],
+    [55, 70, 55, 88],
+    [60, 52, 65, 70],
+    [65, 70, 65, 88],
+  ],
+};
+const STAND_DB = { ...STAND, dots: [[50, 46], [70, 46]] };
+const PLANK_UP = {
+  head: [88, 55],
+  lines: [
+    [80, 60, 48, 71],
+    [80, 60, 82, 87],
+    [48, 71, 26, 84],
+  ],
+};
+
+const POSES = {
+  squat: [
+    STAND,
+    {
+      head: [60, 32],
+      lines: [
+        [60, 39, 59, 59],
+        [60, 45, 76, 41],
+        [60, 45, 76, 45],
+        [59, 59, 47, 67],
+        [47, 67, 50, 88],
+        [59, 59, 71, 67],
+        [71, 67, 68, 88],
+      ],
+    },
+  ],
+  lunge: [
+    STAND,
+    {
+      head: [58, 26],
+      lines: [
+        [58, 33, 58, 57],
+        [58, 39, 52, 52],
+        [58, 39, 64, 52],
+        [58, 57, 46, 74],
+        [46, 74, 34, 84],
+        [58, 57, 71, 66],
+        [71, 66, 71, 88],
+      ],
+    },
+  ],
+  hinge: [
+    STAND_DB,
+    {
+      head: [80, 42],
+      lines: [
+        [58, 56, 76, 46],
+        [70, 49, 69, 66],
+        [70, 49, 73, 66],
+        [58, 56, 53, 72],
+        [53, 72, 52, 88],
+        [58, 56, 57, 72],
+        [57, 72, 58, 88],
+      ],
+      dots: [[69, 67], [73, 67]],
+    },
+  ],
+  bridge: [
+    {
+      head: [22, 83],
+      lines: [
+        [29, 84, 50, 84],
+        [50, 84, 62, 72],
+        [62, 72, 64, 87],
+        [34, 84, 44, 84],
+      ],
+    },
+    {
+      head: [22, 83],
+      lines: [
+        [29, 82, 50, 66],
+        [50, 66, 62, 68],
+        [62, 68, 64, 87],
+        [34, 84, 44, 84],
+      ],
+      dots: [[50, 62]],
+    },
+  ],
+  calfraise: [
+    STAND,
+    {
+      head: [60, 12],
+      lines: [
+        [60, 19, 60, 48],
+        [60, 27, 50, 42],
+        [60, 27, 70, 42],
+        [60, 48, 55, 66],
+        [55, 66, 57, 84],
+        [60, 48, 65, 66],
+        [65, 66, 63, 84],
+      ],
+    },
+  ],
+  pushup: [
+    PLANK_UP,
+    {
+      head: [88, 71],
+      lines: [
+        [80, 75, 48, 79],
+        [80, 75, 70, 87],
+        [48, 79, 26, 86],
+      ],
+    },
+  ],
+  benchpress: [
+    {
+      head: [34, 65],
+      lines: [[42, 67, 66, 67], [66, 67, 76, 77], [76, 77, 76, 87], [52, 65, 52, 46]],
+      dots: [[52, 44]],
+      props: [[28, 72, 86, 72], [36, 72, 36, 88], [78, 72, 78, 88]],
+    },
+    {
+      head: [34, 65],
+      lines: [[42, 67, 66, 67], [66, 67, 76, 77], [76, 77, 76, 87], [52, 65, 42, 58]],
+      dots: [[41, 56]],
+      props: [[28, 72, 86, 72], [36, 72, 36, 88], [78, 72, 78, 88]],
+    },
+  ],
+  overheadpress: [
+    {
+      head: [60, 18],
+      lines: [
+        [60, 25, 60, 52],
+        [60, 31, 49, 34],
+        [49, 34, 49, 24],
+        [60, 31, 71, 34],
+        [71, 34, 71, 24],
+        [60, 52, 55, 70],
+        [55, 70, 55, 88],
+        [60, 52, 65, 70],
+        [65, 70, 65, 88],
+      ],
+      dots: [[49, 22], [71, 22]],
+    },
+    {
+      head: [60, 18],
+      lines: [
+        [60, 25, 60, 52],
+        [60, 31, 56, 21],
+        [56, 21, 53, 12],
+        [60, 31, 64, 21],
+        [64, 21, 67, 12],
+        [60, 52, 55, 70],
+        [55, 70, 55, 88],
+        [60, 52, 65, 70],
+        [65, 70, 65, 88],
+      ],
+      dots: [[53, 10], [67, 10]],
+    },
+  ],
+  curl: [
+    {
+      head: [60, 16],
+      lines: [
+        [60, 23, 60, 52],
+        [60, 31, 55, 41],
+        [55, 41, 53, 50],
+        [60, 31, 65, 41],
+        [65, 41, 67, 50],
+        [60, 52, 55, 70],
+        [55, 70, 55, 88],
+        [60, 52, 65, 70],
+        [65, 70, 65, 88],
+      ],
+      dots: [[53, 52], [67, 52]],
+    },
+    {
+      head: [60, 16],
+      lines: [
+        [60, 23, 60, 52],
+        [60, 31, 53, 44],
+        [53, 44, 55, 30],
+        [60, 31, 67, 44],
+        [67, 44, 65, 30],
+        [60, 52, 55, 70],
+        [55, 70, 55, 88],
+        [60, 52, 65, 70],
+        [65, 70, 65, 88],
+      ],
+      dots: [[55, 28], [65, 28]],
+    },
+  ],
+  row: [
+    {
+      head: [80, 42],
+      lines: [
+        [58, 56, 76, 46],
+        [70, 49, 70, 66],
+        [58, 56, 57, 72],
+        [57, 72, 58, 88],
+        [58, 56, 53, 72],
+        [53, 72, 52, 88],
+      ],
+      dots: [[70, 66]],
+    },
+    {
+      head: [80, 42],
+      lines: [
+        [58, 56, 76, 46],
+        [70, 49, 66, 54],
+        [58, 56, 57, 72],
+        [57, 72, 58, 88],
+        [58, 56, 53, 72],
+        [53, 72, 52, 88],
+      ],
+      dots: [[65, 53]],
+    },
+  ],
+  lateralraise: [
+    STAND_DB,
+    {
+      head: [60, 16],
+      lines: [
+        [60, 23, 60, 52],
+        [60, 30, 42, 28],
+        [60, 30, 78, 28],
+        [60, 52, 55, 70],
+        [55, 70, 55, 88],
+        [60, 52, 65, 70],
+        [65, 70, 65, 88],
+      ],
+      dots: [[40, 28], [80, 28]],
+    },
+  ],
+  dip: [
+    {
+      head: [58, 34],
+      lines: [[58, 41, 57, 58], [61, 44, 67, 52], [67, 52, 70, 60], [57, 58, 40, 68], [40, 68, 34, 72]],
+      props: [[64, 60, 92, 60], [70, 60, 70, 88], [86, 60, 86, 88]],
+    },
+    {
+      head: [58, 44],
+      lines: [[58, 51, 57, 66], [61, 52, 72, 54], [72, 54, 70, 61], [57, 66, 40, 73], [40, 73, 34, 77]],
+      props: [[64, 60, 92, 60], [70, 60, 70, 88], [86, 60, 86, 88]],
+    },
+  ],
+  pullup: [
+    {
+      head: [60, 28],
+      lines: [[60, 35, 60, 56], [60, 37, 49, 17], [60, 37, 71, 17], [60, 56, 57, 70], [57, 70, 60, 80]],
+      props: [[36, 14, 84, 14]],
+    },
+    {
+      head: [60, 19],
+      lines: [[60, 26, 60, 46], [60, 27, 49, 17], [60, 27, 71, 17], [60, 46, 56, 60], [56, 60, 60, 70]],
+      props: [[36, 14, 84, 14]],
+    },
+  ],
+  plank: [
+    {
+      head: [88, 57],
+      lines: [[80, 62, 48, 71], [78, 63, 78, 84], [78, 84, 88, 84], [48, 71, 26, 84]],
+    },
+    {
+      head: [88, 55],
+      lines: [[80, 60, 48, 70], [78, 61, 78, 84], [78, 84, 88, 84], [48, 70, 26, 84]],
+    },
+  ],
+  sideplank: [
+    {
+      head: [80, 48],
+      lines: [[74, 53, 44, 70], [72, 55, 72, 86], [44, 70, 22, 82], [74, 55, 84, 40]],
+    },
+    {
+      head: [80, 44],
+      lines: [[74, 49, 44, 70], [72, 51, 72, 86], [44, 70, 22, 82], [74, 51, 86, 34]],
+    },
+  ],
+  abwheel: [
+    {
+      head: [60, 42],
+      lines: [[59, 49, 51, 64], [51, 64, 35, 70], [60, 51, 74, 70]],
+      circles: [[78, 73, 5]],
+    },
+    {
+      head: [84, 50],
+      lines: [[79, 55, 49, 65], [49, 65, 33, 71], [80, 56, 95, 69]],
+      circles: [[98, 72, 5]],
+    },
+  ],
+  crunch: [
+    {
+      head: [28, 79],
+      lines: [[35, 80, 58, 82], [58, 82, 68, 70], [68, 70, 72, 86]],
+    },
+    {
+      head: [33, 68],
+      lines: [[39, 73, 58, 82], [58, 82, 68, 70], [68, 70, 72, 86]],
+    },
+  ],
+  vsit: [
+    {
+      head: [54, 40],
+      lines: [[55, 47, 60, 66], [60, 66, 82, 50], [55, 51, 72, 45]],
+    },
+    {
+      head: [50, 46],
+      lines: [[52, 53, 60, 68], [60, 68, 80, 58], [52, 57, 70, 53]],
+    },
+  ],
+  supine: [
+    {
+      head: [26, 81],
+      lines: [[33, 82, 58, 82], [42, 82, 42, 64], [58, 82, 72, 68]],
+    },
+    {
+      head: [26, 81],
+      lines: [[33, 82, 58, 82], [50, 82, 50, 64], [58, 82, 74, 80]],
+    },
+  ],
+  twist: [
+    {
+      head: [54, 44],
+      lines: [[55, 51, 61, 68], [61, 68, 80, 58], [55, 55, 40, 62]],
+      dots: [[39, 62]],
+    },
+    {
+      head: [54, 44],
+      lines: [[55, 51, 61, 68], [61, 68, 80, 58], [55, 55, 71, 50]],
+      dots: [[72, 49]],
+    },
+  ],
+  superman: [
+    {
+      head: [26, 76],
+      lines: [[33, 78, 58, 80], [33, 77, 18, 72], [58, 80, 76, 74]],
+    },
+    {
+      head: [26, 72],
+      lines: [[33, 75, 58, 79], [33, 73, 16, 66], [58, 79, 78, 70]],
+    },
+  ],
+  jumpingjack: [
+    STAND,
+    {
+      head: [60, 14],
+      lines: [
+        [60, 21, 60, 50],
+        [60, 28, 45, 12],
+        [60, 28, 75, 12],
+        [60, 50, 46, 70],
+        [46, 70, 44, 88],
+        [60, 50, 74, 70],
+        [74, 70, 76, 88],
+      ],
+    },
+  ],
+  burpee: [
+    {
+      head: [60, 32],
+      lines: [
+        [60, 39, 59, 59],
+        [60, 45, 74, 56],
+        [59, 59, 47, 67],
+        [47, 67, 50, 88],
+        [59, 59, 71, 67],
+        [71, 67, 68, 88],
+      ],
+    },
+    {
+      head: [88, 55],
+      lines: [
+        [80, 60, 48, 71],
+        [80, 60, 82, 87],
+        [48, 71, 37, 78],
+        [37, 78, 26, 84],
+        [48, 71, 37, 76],
+        [37, 76, 26, 82],
+      ],
+    },
+  ],
+  jump: [
+    {
+      head: [60, 34],
+      lines: [
+        [60, 41, 59, 61],
+        [60, 47, 48, 58],
+        [60, 47, 72, 58],
+        [59, 61, 47, 69],
+        [47, 69, 50, 88],
+        [59, 61, 71, 69],
+        [71, 69, 68, 88],
+      ],
+    },
+    {
+      head: [60, 10],
+      lines: [
+        [60, 17, 60, 38],
+        [60, 24, 49, 8],
+        [60, 24, 71, 8],
+        [60, 38, 51, 48],
+        [51, 48, 58, 54],
+        [60, 38, 69, 48],
+        [69, 48, 62, 54],
+      ],
+    },
+  ],
+  run: [
+    {
+      head: [60, 20],
+      lines: [
+        [60, 27, 58, 52],
+        [60, 33, 48, 41],
+        [60, 33, 72, 27],
+        [58, 52, 72, 48],
+        [72, 48, 72, 66],
+        [58, 52, 54, 70],
+        [54, 70, 54, 88],
+      ],
+    },
+    {
+      head: [60, 20],
+      lines: [
+        [60, 27, 58, 52],
+        [60, 33, 72, 41],
+        [60, 33, 48, 27],
+        [58, 52, 44, 48],
+        [44, 48, 44, 66],
+        [58, 52, 62, 70],
+        [62, 70, 62, 88],
+      ],
+    },
+  ],
+  skater: [
+    {
+      head: [48, 26],
+      lines: [
+        [48, 33, 56, 54],
+        [48, 37, 36, 47],
+        [48, 37, 62, 40],
+        [56, 54, 54, 70],
+        [54, 70, 52, 88],
+        [56, 54, 70, 64],
+        [70, 64, 80, 74],
+      ],
+    },
+    {
+      head: [72, 26],
+      lines: [
+        [72, 33, 64, 54],
+        [72, 37, 84, 47],
+        [72, 37, 58, 40],
+        [64, 54, 66, 70],
+        [66, 70, 68, 88],
+        [64, 54, 50, 64],
+        [50, 64, 40, 74],
+      ],
+    },
+  ],
+  climber: [
+    {
+      head: [88, 55],
+      lines: [[80, 60, 48, 71], [80, 60, 82, 87], [48, 71, 26, 84], [48, 71, 62, 76], [62, 76, 60, 86]],
+    },
+    {
+      head: [88, 55],
+      lines: [[80, 60, 48, 71], [80, 60, 82, 87], [48, 71, 30, 76], [48, 71, 40, 82], [40, 82, 26, 86]],
+    },
+  ],
+  crawl: [
+    {
+      head: [84, 54],
+      lines: [[76, 59, 50, 61], [74, 60, 72, 84], [50, 61, 44, 74], [44, 74, 46, 87]],
+    },
+    {
+      head: [84, 54],
+      lines: [[76, 59, 50, 61], [74, 60, 80, 84], [50, 61, 40, 72], [40, 72, 38, 86]],
+    },
+  ],
+};
+
+// map an exercise name to a pose pattern (order matters)
+const PATTERN_RULES = [
+  [/pull up|chin|hanging/, "pullup"],
+  [/side plank|copenhagen/, "sideplank"],
+  [/bench press|skullcrusher|chest fly/, "benchpress"],
+  [/reverse fly|lateral raise|delt/, "lateralraise"],
+  [/push up|pushup|up-down|pike/, "pushup"],
+  [/dip/, "dip"],
+  [/curl/, "curl"],
+  [/row/, "row"],
+  [/overhead press|shoulder|press\)/, "overheadpress"],
+  [/deadlift|good morning|swing/, "hinge"],
+  [/bridge|hip thrust/, "bridge"],
+  [/calf raise/, "calfraise"],
+  [/split squat|lunge|step-up|split jumps|pyro/, "lunge"],
+  [/mountain climber|plank jack|shoot/, "climber"],
+  [/plank/, "plank"],
+  [/ab wheel|rollout|inchworm/, "abwheel"],
+  [/russian/, "twist"],
+  [/v-sit|v-hold|v-ups/, "vsit"],
+  [/crunch|sit up/, "crunch"],
+  [/dead bug|scissor|flutter|heel tap|leg swipe|swipes|leg raise|bicycle|hand-toe|cross-body/, "supine"],
+  [/superman/, "superman"],
+  [/jack|star jump/, "jumpingjack"],
+  [/burpee/, "burpee"],
+  [/jump|frog/, "jump"],
+  [/high knee|butt kick|sprint|fast feet|toe tap/, "run"],
+  [/skater|shuffle|karaoke/, "skater"],
+  [/bear crawl|crab/, "crawl"],
+  [/wall sit|squat/, "squat"],
+];
+function patternFor(name) {
+  const n = name.toLowerCase();
+  for (const [re, p] of PATTERN_RULES) if (re.test(n)) return p;
+  return "squat";
+}
+
+function Frame({ f, color, opacity = 1 }) {
+  return (
+    <g opacity={opacity}>
+      <circle cx={f.head[0]} cy={f.head[1]} r="6.5" fill="none" stroke={color} strokeWidth="3.5" />
+      {(f.lines || []).map((l, i) => (
+        <line key={i} x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} stroke={color} strokeWidth="3.5" strokeLinecap="round" />
+      ))}
+      {(f.props || []).map((l, i) => (
+        <line key={"p" + i} x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} stroke="#4A515B" strokeWidth="3" strokeLinecap="round" />
+      ))}
+      {(f.circles || []).map((c, i) => (
+        <circle key={"c" + i} cx={c[0]} cy={c[1]} r={c[2]} fill="none" stroke="#4A515B" strokeWidth="3" />
+      ))}
+      {(f.dots || []).map((d, i) => (
+        <circle key={"d" + i} cx={d[0]} cy={d[1]} r="3.5" fill="#FFD338" />
+      ))}
+    </g>
+  );
+}
+
+// oscillates 0→1→0 with ease-in-out, ~30fps
+function useOscillator(period = 1700) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf,
+      last = 0;
+    const start = performance.now();
+    const loop = (now) => {
+      if (now - last > 33) {
+        last = now;
+        const p = ((now - start) % period) / period;
+        setT((1 - Math.cos(2 * Math.PI * p)) / 2);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [period]);
+  return t;
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const lerpArr = (A = [], B = [], t) => A.map((v, i) => lerp(v, B[i] ?? v, t));
+
+function tweenFrame(A, B, t) {
+  return {
+    head: lerpArr(A.head, B.head, t),
+    lines: (A.lines || []).map((l, i) => lerpArr(l, (B.lines || [])[i] || l, t)),
+    props: A.props,
+    circles: (A.circles || []).map((c, i) => lerpArr(c, (B.circles || [])[i] || c, t)),
+    dots: (A.dots || []).map((d, i) => lerpArr(d, (B.dots || [])[i] || d, t)),
+  };
+}
+
+function Demo({ name, size = 130, color = "#F2F0EA" }) {
+  const t = useOscillator();
+  const frames = POSES[patternFor(name)];
+  if (!frames) return null;
+  const [A, B] = frames;
+  const smooth = (A.lines || []).length === (B.lines || []).length;
+  return (
+    <svg viewBox="0 0 120 100" width={size} height={size * 0.83} style={{ display: "block" }}>
+      <line x1="10" y1="92" x2="110" y2="92" stroke="#2A2F37" strokeWidth="2" strokeLinecap="round" />
+      {smooth ? (
+        <Frame f={tweenFrame(A, B, t)} color={color} />
+      ) : (
+        <>
+          <Frame f={A} color={color} opacity={1 - t} />
+          <Frame f={B} color={color} opacity={t} />
+        </>
+      )}
+    </svg>
+  );
+}
+
+// Build a ~30 min workout
+function generateWorkout(focus, mode) {
+  const pool = (f) => EXERCISES.filter((e) => e.focus === f);
+  let picks = [];
+
+  if (mode === "strength") {
+    // 6 exercises × 3 sets, 40s work + 60s rest ≈ 30 min
+    if (focus === "auto") {
+      picks = [
+        ...shuffle(pool("upper").filter((e) => e.str)).slice(0, 2),
+        ...shuffle(pool("lower").filter((e) => e.str)).slice(0, 2),
+        ...shuffle(pool("core")).slice(0, 2),
+      ];
+    } else if (focus === "core") {
+      picks = shuffle(pool("core")).slice(0, 6);
+    } else if (focus === "cardio") {
+      // cardio-strength hybrid
+      picks = [...shuffle(pool("cardio")).slice(0, 4), ...shuffle(pool("core")).slice(0, 2)];
+    } else {
+      picks = shuffle(pool(focus).filter((e) => e.str)).slice(0, 5);
+      picks.push(shuffle(pool("core"))[0]); // finisher
+    }
+    return { mode, focus, exercises: picks, sets: 3, workSec: 40, restSec: 60 };
+  }
+
+  // HIIT: 10 exercises × 3 rounds, 45/15 = 30 min
+  if (focus === "auto") {
+    picks = [
+      ...shuffle(pool("cardio")).slice(0, 4),
+      ...shuffle(pool("upper")).slice(0, 2),
+      ...shuffle(pool("lower")).slice(0, 2),
+      ...shuffle(pool("core")).slice(0, 2),
+    ];
+  } else if (focus === "cardio") {
+    picks = [...shuffle(pool("cardio")).slice(0, 7), ...shuffle(pool("core")).slice(0, 3)];
+  } else {
+    picks = [...shuffle(pool(focus)).slice(0, 7), ...shuffle(pool("cardio")).slice(0, 3)];
+  }
+  picks = shuffle(picks);
+  return { mode, focus, exercises: picks, rounds: 3, workSec: 45, restSec: 15 };
+}
+
+// ---------- storage ----------
+const store = {
+  async get(key) {
+    try {
+      const v = localStorage.getItem("homegym:" + key);
+      return v ? JSON.parse(v) : null;
+    } catch {
+      return null;
+    }
+  },
+  async set(key, val) {
+    try {
+      localStorage.setItem("homegym:" + key, JSON.stringify(val));
+    } catch (e) {
+      console.error("storage", e);
+    }
+  },
+};
+
+// ---------- audio beeps ----------
+let audioCtx = null;
+function beep(freq = 880, dur = 0.12, when = 0) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.frequency.value = freq;
+    o.type = "square";
+    g.gain.value = 0.08;
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    const t = audioCtx.currentTime + when;
+    o.start(t);
+    o.stop(t + dur);
+  } catch {}
+}
+
+// ============================================================
+// APP
+// ============================================================
+function App() {
+  const [screen, setScreen] = useState("profile"); // profile | home | workout | done | history
+  const [profiles, setProfiles] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [newName, setNewName] = useState("");
+  const [focus, setFocus] = useState("auto");
+  const [mode, setMode] = useState("strength");
+  const [workout, setWorkout] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [tv, setTv] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const p = (await store.get("profiles")) || [];
+      const h = (await store.get("history")) || [];
+      setProfiles(p);
+      setHistory(h);
+      setLoaded(true);
+    })();
+  }, []);
+
+  const addProfile = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const p = [...profiles.filter((x) => x !== name), name];
+    setProfiles(p);
+    await store.set("profiles", p);
+    setNewName("");
+    setProfile(name);
+    setScreen("home");
+  };
+
+  const startWorkout = (regen) => {
+    const w = regen || generateWorkout(focus, mode);
+    // seed weights from last logged session for this profile
+    const lastWeights = {};
+    history
+      .filter((h) => h.profile === profile)
+      .forEach((h) =>
+        (h.entries || []).forEach((en) => {
+          if (en.weight) lastWeights[en.name] = en.weight;
+        })
+      );
+    w.exercises = w.exercises.map((e) => ({
+      ...e,
+      weight: lastWeights[e.n] ?? e.seed ?? null,
+    }));
+    setWorkout(w);
+    setScreen("workout");
+  };
+
+  const saveSession = async (session) => {
+    const rec = { ...session, profile, date: new Date().toISOString() };
+    const h = [rec, ...history].slice(0, 200);
+    setHistory(h);
+    await store.set("history", h);
+  };
+
+  if (!loaded)
+    return (
+      <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "#8A9199", fontFamily: F.utility, letterSpacing: 2 }}>LOADING…</div>
+      </div>
+    );
+
+  return (
+    <div style={S.app}>
+      <style>{CSS}</style>
+      {screen === "profile" && (
+        <ProfileScreen {...{ profiles, setProfile, setScreen, newName, setNewName, addProfile }} />
+      )}
+      {screen === "home" && (
+        <HomeScreen
+          {...{ profile, focus, setFocus, mode, setMode, startWorkout, setScreen, history }}
+          switchProfile={() => setScreen("profile")}
+        />
+      )}
+      {screen === "workout" && workout && (
+        <WorkoutScreen
+          workout={workout}
+          tv={tv}
+          setTv={setTv}
+          onQuit={() => setScreen("home")}
+          onFinish={async (session) => {
+            await saveSession(session);
+            setScreen("done");
+          }}
+        />
+      )}
+      {screen === "done" && <DoneScreen onHome={() => setScreen("home")} onHistory={() => setScreen("history")} />}
+      {screen === "history" && (
+        <HistoryScreen history={history} profile={profile} onBack={() => setScreen("home")} />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// SCREENS
+// ============================================================
+function ProfileScreen({ profiles, setProfile, setScreen, newName, setNewName, addProfile }) {
+  return (
+    <div style={S.page}>
+      <Header sub="WHO'S TRAINING?" />
+      <div style={{ display: "grid", gap: 12, marginTop: 28 }}>
+        {profiles.map((p) => (
+          <button
+            key={p}
+            className="card-btn"
+            style={S.profileBtn}
+            onClick={() => {
+              setProfile(p);
+              setScreen("home");
+            }}
+          >
+            <span style={{ fontFamily: F.display, fontSize: 26, letterSpacing: 1 }}>{p}</span>
+            <span style={S.arrow}>→</span>
+          </button>
+        ))}
+        <div style={{ display: "flex", gap: 10, marginTop: profiles.length ? 8 : 0 }}>
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addProfile()}
+            placeholder={profiles.length ? "Add another person" : "Your name"}
+            style={S.input}
+          />
+          <button className="card-btn" style={S.addBtn} onClick={addProfile}>
+            ADD
+          </button>
+        </div>
+        {profiles.length === 0 && (
+          <p style={S.hint}>Add yourself and your wife — history is tracked per person, shared on this device or link.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HomeScreen({ profile, focus, setFocus, mode, setMode, startWorkout, setScreen, switchProfile, history }) {
+  const mine = history.filter((h) => h.profile === profile);
+  return (
+    <div style={S.page}>
+      <Header sub={`READY, ${profile.toUpperCase()}`} />
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button className="chip" onClick={switchProfile}>switch person</button>
+        <button className="chip" onClick={() => setScreen("history")}>
+          history · {mine.length}
+        </button>
+      </div>
+
+      <SectionLabel>WORKOUT STYLE</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            className="card-btn"
+            style={{ ...S.selectCard, ...(mode === m.id ? S.selected : {}) }}
+            onClick={() => setMode(m.id)}
+          >
+            <div style={{ fontFamily: F.display, fontSize: 20, letterSpacing: 1 }}>{m.label}</div>
+            <div style={S.cardSub}>{m.sub}</div>
+          </button>
+        ))}
+      </div>
+
+      <SectionLabel>FOCUS</SectionLabel>
+      <div style={{ display: "grid", gap: 8 }}>
+        {FOCI.map((f) => (
+          <button
+            key={f.id}
+            className="card-btn"
+            style={{ ...S.selectRow, ...(focus === f.id ? S.selected : {}) }}
+            onClick={() => setFocus(f.id)}
+          >
+            <span style={{ fontFamily: F.display, fontSize: 18, letterSpacing: 1 }}>{f.label}</span>
+            <span style={S.cardSub}>{f.sub}</span>
+          </button>
+        ))}
+      </div>
+
+      <button className="go-btn" onClick={() => startWorkout()}>
+        BUILD MY 30-MINUTE WORKOUT
+      </button>
+      <p style={S.hint}>
+        Every workout is freshly generated from your exercise library — dumbbells, bench, pull-up bar, ab wheel, bodyweight.
+      </p>
+    </div>
+  );
+}
+
+// ---------- the workout player ----------
+function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
+  const isStrength = workout.mode === "strength";
+  // Build the full timeline of steps
+  const steps = useRef([]);
+  if (steps.current.length === 0) {
+    const arr = [];
+    if (isStrength) {
+      workout.exercises.forEach((ex, ei) => {
+        for (let s = 1; s <= workout.sets; s++) {
+          arr.push({ type: "work", ex, ei, set: s, dur: workout.workSec, label: `SET ${s} OF ${workout.sets}` });
+          const last = ei === workout.exercises.length - 1 && s === workout.sets;
+          if (!last) arr.push({ type: "rest", ex, ei, set: s, dur: workout.restSec, next: s < workout.sets ? ex : workout.exercises[ei + 1] });
+        }
+      });
+    } else {
+      for (let r = 1; r <= workout.rounds; r++) {
+        workout.exercises.forEach((ex, ei) => {
+          arr.push({ type: "work", ex, ei, round: r, dur: workout.workSec, label: `ROUND ${r} OF ${workout.rounds}` });
+          const last = r === workout.rounds && ei === workout.exercises.length - 1;
+          if (!last)
+            arr.push({
+              type: "rest",
+              ex,
+              ei,
+              round: r,
+              dur: workout.restSec,
+              next: ei < workout.exercises.length - 1 ? workout.exercises[ei + 1] : workout.exercises[0],
+            });
+        });
+      }
+    }
+    steps.current = arr;
+  }
+
+  const [idx, setIdx] = useState(0);
+  const [remaining, setRemaining] = useState(steps.current[0].dur);
+  const [paused, setPaused] = useState(true);
+  const [started, setStarted] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [weights, setWeights] = useState(() => Object.fromEntries(workout.exercises.map((e) => [e.n, e.weight ?? ""])));
+  const startTime = useRef(null);
+
+  const step = steps.current[idx];
+  const totalSteps = steps.current.length;
+
+  const advance = useCallback(() => {
+    if (idx + 1 >= totalSteps) {
+      finish();
+      return;
+    }
+    const next = steps.current[idx + 1];
+    setIdx(idx + 1);
+    setRemaining(next.dur);
+    beep(next.type === "work" ? 1200 : 500, 0.18);
+  }, [idx, totalSteps]);
+
+  useEffect(() => {
+    if (paused) return;
+    const t = setInterval(() => {
+      setElapsed((e) => e + 1);
+      setRemaining((r) => {
+        if (r <= 1) {
+          setTimeout(advance, 0);
+          return 0;
+        }
+        if (r <= 4) beep(880, 0.08);
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [paused, advance]);
+
+  const finish = () => {
+    const entries = workout.exercises.map((e) => ({
+      name: e.n,
+      weight: weights[e.n] === "" ? null : Number(weights[e.n]),
+    }));
+    onFinish({
+      mode: workout.mode,
+      focus: workout.focus,
+      durationSec: elapsed,
+      entries,
+      exerciseCount: workout.exercises.length,
+    });
+  };
+
+  const isWork = step.type === "work";
+  const progress = 1 - remaining / step.dur;
+  const R = tv ? 150 : 110;
+  const C = 2 * Math.PI * R;
+
+  return (
+    <div style={{ ...S.workoutWrap, padding: tv ? "40px 5vw" : "20px 18px" }}>
+      {/* top bar */}
+      <div style={S.topBar}>
+        <button className="chip" onClick={onQuit}>← quit</button>
+        <div style={{ fontFamily: F.utility, letterSpacing: 3, fontSize: 12, color: "#8A9199" }}>
+          {fmt(elapsed)} ELAPSED · {idx + 1}/{totalSteps}
+        </div>
+        <button className="chip" onClick={() => setTv(!tv)}>{tv ? "phone view" : "tv view"}</button>
+      </div>
+
+      {/* status */}
+      <div style={{ textAlign: "center", marginTop: tv ? 20 : 10 }}>
+        <div
+          style={{
+            fontFamily: F.utility,
+            letterSpacing: 6,
+            fontSize: tv ? 22 : 13,
+            color: isWork ? "#FFD338" : "#5FA8FF",
+          }}
+        >
+          {isWork ? "WORK" : "REST"}
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
+          {isWork ? (
+            <Demo name={step.ex.n} size={tv ? 220 : 130} />
+          ) : step.next ? (
+            <Demo name={step.next.n} size={tv ? 220 : 130} color="#5FA8FF" />
+          ) : null}
+        </div>
+        <h1
+          style={{
+            fontFamily: F.display,
+            fontSize: tv ? "min(7vw, 76px)" : 34,
+            margin: "8px 0 2px",
+            lineHeight: 1.05,
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
+          {isWork ? step.ex.n : "Rest"}
+        </h1>
+        <div style={{ fontFamily: F.utility, fontSize: tv ? 20 : 13, color: "#8A9199", letterSpacing: 2 }}>
+          {isWork
+            ? isStrength
+              ? step.label + (weights[step.ex.n] ? ` · ${weights[step.ex.n]} LB` : "")
+              : step.label
+            : step.next
+            ? `NEXT UP: ${step.next.n.toUpperCase()}`
+            : ""}
+        </div>
+      </div>
+
+      {/* the plate timer */}
+      <div style={{ display: "flex", justifyContent: "center", margin: tv ? "30px 0" : "18px 0" }}>
+        <div style={{ position: "relative", width: R * 2 + 40, height: R * 2 + 40 }}>
+          <svg width={R * 2 + 40} height={R * 2 + 40} style={{ transform: "rotate(-90deg)" }}>
+            <circle cx={R + 20} cy={R + 20} r={R} stroke="#2A2F37" strokeWidth={tv ? 22 : 16} fill="#1B1F25" />
+            <circle
+              cx={R + 20}
+              cy={R + 20}
+              r={R}
+              stroke={isWork ? "#FFD338" : "#5FA8FF"}
+              strokeWidth={tv ? 22 : 16}
+              fill="none"
+              strokeDasharray={C}
+              strokeDashoffset={C * (1 - progress)}
+              strokeLinecap="round"
+              style={{ transition: "stroke-dashoffset 1s linear" }}
+            />
+          </svg>
+          <div style={S.timerCenter}>
+            <div style={{ fontFamily: F.display, fontSize: tv ? 96 : 64, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              {remaining}
+            </div>
+            <div style={{ fontFamily: F.utility, fontSize: tv ? 16 : 11, letterSpacing: 4, color: "#8A9199" }}>SECONDS</div>
+          </div>
+        </div>
+      </div>
+
+      {/* weight logger during rest (strength mode) */}
+      {isStrength && step.ex.seed !== undefined && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontFamily: F.utility, fontSize: 12, letterSpacing: 2, color: "#8A9199" }}>DB WEIGHT</span>
+          <input
+            type="number"
+            value={weights[step.ex.n] ?? ""}
+            onChange={(e) => setWeights({ ...weights, [step.ex.n]: e.target.value })}
+            style={{ ...S.input, width: 90, textAlign: "center", fontSize: 20, padding: "8px 4px" }}
+          />
+          <span style={{ fontFamily: F.utility, fontSize: 12, letterSpacing: 2, color: "#8A9199" }}>LB</span>
+        </div>
+      )}
+
+      {/* controls */}
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        <button
+          className="go-btn"
+          style={{ margin: 0, minWidth: 180, background: paused ? "#FFD338" : "#2A2F37", color: paused ? "#14171C" : "#F2F0EA" }}
+          onClick={() => {
+            if (!started) {
+              setStarted(true);
+              startTime.current = Date.now();
+              beep(1200, 0.2);
+            }
+            setPaused(!paused);
+          }}
+        >
+          {!started ? "START" : paused ? "RESUME" : "PAUSE"}
+        </button>
+        <button className="chip" style={{ fontSize: 14, padding: "0 18px" }} onClick={advance}>
+          skip →
+        </button>
+      </div>
+
+      {/* up next strip */}
+      {!tv && (
+        <div style={{ marginTop: 22 }}>
+          <SectionLabel>THE PLAN</SectionLabel>
+          <div style={{ display: "grid", gap: 6 }}>
+            {workout.exercises.map((e, i) => (
+              <div
+                key={i}
+                style={{
+                  ...S.planRow,
+                  opacity: i < step.ei ? 0.35 : 1,
+                  borderLeft: i === step.ei ? "3px solid #FFD338" : "3px solid transparent",
+                }}
+              >
+                <span>{e.n}</span>
+                <span style={{ color: "#8A9199", fontFamily: F.utility, fontSize: 12 }}>
+                  {isStrength ? `${workout.sets}×` : `${workout.workSec}s`}
+                  {e.seed !== undefined && weights[e.n] ? ` · ${weights[e.n]}lb` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button className="chip" style={{ marginTop: 14 }} onClick={finish}>
+            finish early & save
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DoneScreen({ onHome, onHistory }) {
+  return (
+    <div style={{ ...S.page, textAlign: "center", paddingTop: 80 }}>
+      <div style={{ fontFamily: F.display, fontSize: 64 }}>DONE.</div>
+      <p style={{ color: "#8A9199", fontFamily: F.utility, letterSpacing: 2, marginTop: 8 }}>
+        WORKOUT SAVED TO YOUR HISTORY
+      </p>
+      <button className="go-btn" onClick={onHome}>BACK HOME</button>
+      <button className="chip" style={{ marginTop: 12 }} onClick={onHistory}>view history</button>
+    </div>
+  );
+}
+
+function HistoryScreen({ history, profile, onBack }) {
+  const mine = history.filter((h) => h.profile === profile);
+  const totalMin = Math.round(mine.reduce((a, h) => a + (h.durationSec || 0), 0) / 60);
+  // per-exercise best weight
+  const best = {};
+  mine.forEach((h) =>
+    (h.entries || []).forEach((e) => {
+      if (e.weight && (!best[e.name] || e.weight > best[e.name])) best[e.name] = e.weight;
+    })
+  );
+  const bestList = Object.entries(best).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  return (
+    <div style={S.page}>
+      <Header sub={`${profile.toUpperCase()} — TRAINING LOG`} />
+      <button className="chip" style={{ marginTop: 10 }} onClick={onBack}>← back</button>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 }}>
+        <Stat label="WORKOUTS" value={mine.length} />
+        <Stat label="TOTAL MINUTES" value={totalMin} />
+      </div>
+
+      {bestList.length > 0 && (
+        <>
+          <SectionLabel>TOP WEIGHTS</SectionLabel>
+          <div style={{ display: "grid", gap: 6 }}>
+            {bestList.map(([name, w]) => (
+              <div key={name} style={S.planRow}>
+                <span>{name}</span>
+                <span style={{ fontFamily: F.display, color: "#FFD338" }}>{w} LB</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <SectionLabel>SESSIONS</SectionLabel>
+      <div style={{ display: "grid", gap: 8 }}>
+        {mine.length === 0 && <p style={S.hint}>No workouts yet — go crush one.</p>}
+        {mine.map((h, i) => (
+          <div key={i} style={{ ...S.selectCard, cursor: "default" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: F.display, letterSpacing: 1 }}>
+                {h.mode === "strength" ? "STRENGTH" : "HIIT"} · {h.focus.toUpperCase()}
+              </span>
+              <span style={{ color: "#8A9199", fontFamily: F.utility, fontSize: 12 }}>
+                {new Date(h.date).toLocaleDateString()}
+              </span>
+            </div>
+            <div style={S.cardSub}>
+              {Math.round((h.durationSec || 0) / 60)} min · {h.exerciseCount} exercises
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- small components ----------
+const Header = ({ sub }) => (
+  <div>
+    <div style={{ fontFamily: F.utility, letterSpacing: 6, fontSize: 11, color: "#FFD338" }}>THE HOME GYM</div>
+    <h1 style={{ fontFamily: F.display, fontSize: 34, margin: "6px 0 0", letterSpacing: 1 }}>{sub}</h1>
+  </div>
+);
+const SectionLabel = ({ children }) => (
+  <div style={{ fontFamily: F.utility, letterSpacing: 4, fontSize: 11, color: "#8A9199", margin: "26px 0 10px" }}>
+    {children}
+  </div>
+);
+const Stat = ({ label, value }) => (
+  <div style={{ ...S.selectCard, textAlign: "center", cursor: "default" }}>
+    <div style={{ fontFamily: F.display, fontSize: 40, color: "#FFD338" }}>{value}</div>
+    <div style={{ fontFamily: F.utility, fontSize: 11, letterSpacing: 3, color: "#8A9199" }}>{label}</div>
+  </div>
+);
+
+// ---------- styles ----------
+const F = {
+  display: "'Archivo Black', 'Arial Black', sans-serif",
+  body: "'Archivo', system-ui, sans-serif",
+  utility: "'Archivo', system-ui, sans-serif",
+};
+
+const S = {
+  app: { minHeight: "100vh", background: "#14171C", color: "#F2F0EA", fontFamily: F.body },
+  page: { maxWidth: 560, margin: "0 auto", padding: "28px 18px 60px" },
+  workoutWrap: { maxWidth: 900, margin: "0 auto" },
+  topBar: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  profileBtn: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "20px 22px",
+    background: "#1B1F25",
+    border: "1px solid #2A2F37",
+    borderRadius: 14,
+    color: "#F2F0EA",
+    cursor: "pointer",
+    textAlign: "left",
+  },
+  arrow: { color: "#FFD338", fontSize: 22 },
+  input: {
+    flex: 1,
+    background: "#1B1F25",
+    border: "1px solid #2A2F37",
+    borderRadius: 12,
+    color: "#F2F0EA",
+    padding: "14px 16px",
+    fontSize: 16,
+    fontFamily: F.body,
+    outline: "none",
+  },
+  addBtn: {
+    background: "#FFD338",
+    color: "#14171C",
+    border: "none",
+    borderRadius: 12,
+    padding: "0 22px",
+    fontFamily: F.display,
+    letterSpacing: 1,
+    cursor: "pointer",
+  },
+  selectCard: {
+    background: "#1B1F25",
+    border: "1px solid #2A2F37",
+    borderRadius: 14,
+    padding: "16px 16px",
+    color: "#F2F0EA",
+    cursor: "pointer",
+    textAlign: "left",
+  },
+  selectRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    gap: 10,
+    background: "#1B1F25",
+    border: "1px solid #2A2F37",
+    borderRadius: 12,
+    padding: "14px 16px",
+    color: "#F2F0EA",
+    cursor: "pointer",
+    textAlign: "left",
+  },
+  selected: { border: "1px solid #FFD338", background: "#22251E" },
+  cardSub: { fontSize: 12, color: "#8A9199", marginTop: 4 },
+  hint: { color: "#8A9199", fontSize: 13, lineHeight: 1.5, marginTop: 14 },
+  planRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "10px 12px",
+    background: "#1B1F25",
+    borderRadius: 8,
+    fontSize: 14,
+  },
+  timerCenter: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+};
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600&family=Archivo+Black&display=swap');
+* { box-sizing: border-box; }
+body { margin: 0; background: #14171C; }
+.card-btn { transition: transform .08s ease, border-color .15s ease; }
+.card-btn:active { transform: scale(.98); }
+.chip {
+  background: transparent; border: 1px solid #2A2F37; color: #8A9199;
+  border-radius: 999px; padding: 8px 14px; font-size: 12px; letter-spacing: 1px;
+  cursor: pointer; font-family: 'Archivo', system-ui, sans-serif;
+}
+.chip:hover { border-color: #FFD338; color: #F2F0EA; }
+.go-btn {
+  display: block; width: 100%; margin-top: 30px; padding: 18px;
+  background: #FFD338; color: #14171C; border: none; border-radius: 14px;
+  font-family: 'Archivo Black', 'Arial Black', sans-serif; font-size: 17px; letter-spacing: 1.5px;
+  cursor: pointer; transition: transform .08s ease;
+}
+.go-btn:active { transform: scale(.98); }
+input:focus { border-color: #FFD338 !important; }
+@keyframes poseA { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes poseB { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
+.pose-a { animation: poseA 1.4s steps(1, end) infinite; }
+.pose-b { animation: poseB 1.4s steps(1, end) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pose-a, .pose-b { animation: none; }
+  .pose-b { opacity: 0; }
+}
+`;
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
