@@ -869,16 +869,20 @@ function App() {
     const w = regen || generateWorkout(focus, mode);
     // seed weights from last logged session for this profile
     const lastWeights = {};
+    const lastReps = {};
+    // history is newest-first, so only the first hit per exercise counts
     history
       .filter((h) => h.profile === profile)
       .forEach((h) =>
         (h.entries || []).forEach((en) => {
-          if (en.weight) lastWeights[en.name] = en.weight;
+          if (en.weight && !(en.name in lastWeights)) lastWeights[en.name] = en.weight;
+          if (en.reps && !(en.name in lastReps)) lastReps[en.name] = en.reps;
         })
       );
     w.exercises = w.exercises.map((e) => ({
       ...e,
       weight: lastWeights[e.n] ?? e.seed ?? null,
+      reps: lastReps[e.n] ?? null,
     }));
     setWorkout(w);
     setScreen("workout");
@@ -1067,6 +1071,7 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
   const [started, setStarted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [weights, setWeights] = useState(() => Object.fromEntries(workout.exercises.map((e) => [e.n, e.weight ?? ""])));
+  const [reps, setReps] = useState(() => Object.fromEntries(workout.exercises.map((e) => [e.n, e.reps ?? ""])));
   const startTime = useRef(null);
 
   const step = steps.current[idx];
@@ -1103,6 +1108,7 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
     const entries = workout.exercises.map((e) => ({
       name: e.n,
       weight: weights[e.n] === "" ? null : Number(weights[e.n]),
+      reps: reps[e.n] === "" ? null : Number(reps[e.n]),
     }));
     onFinish({
       mode: workout.mode,
@@ -1163,7 +1169,9 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
         <div style={{ fontFamily: F.utility, fontSize: tv ? 20 : 13, color: "#8A9199", letterSpacing: 2 }}>
           {isWork
             ? isStrength
-              ? step.label + (weights[step.ex.n] ? ` · ${weights[step.ex.n]} LB` : "")
+              ? step.label +
+                (weights[step.ex.n] ? ` · ${weights[step.ex.n]} LB` : "") +
+                (reps[step.ex.n] ? (weights[step.ex.n] ? ` × ${reps[step.ex.n]}` : ` · ${reps[step.ex.n]} REPS`) : "")
               : step.label
             : step.next
             ? `NEXT UP: ${step.next.n.toUpperCase()}`
@@ -1198,17 +1206,23 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
         </div>
       </div>
 
-      {/* weight logger during rest (strength mode) */}
-      {isStrength && step.ex.seed !== undefined && (
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, alignItems: "center", marginBottom: 12 }}>
-          <span style={{ fontFamily: F.utility, fontSize: 12, letterSpacing: 2, color: "#8A9199" }}>DB WEIGHT</span>
-          <input
-            type="number"
-            value={weights[step.ex.n] ?? ""}
-            onChange={(e) => setWeights({ ...weights, [step.ex.n]: e.target.value })}
-            style={{ ...S.input, width: 90, textAlign: "center", fontSize: 20, padding: "8px 4px" }}
+      {/* weight + reps logger (strength mode) */}
+      {isStrength && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap", marginBottom: 12 }}>
+          {step.ex.seed !== undefined && (
+            <Stepper
+              label="LB"
+              value={weights[step.ex.n]}
+              inc={2.5}
+              onChange={(v) => setWeights({ ...weights, [step.ex.n]: v })}
+            />
+          )}
+          <Stepper
+            label="REPS"
+            value={reps[step.ex.n]}
+            inc={1}
+            onChange={(v) => setReps({ ...reps, [step.ex.n]: v })}
           />
-          <span style={{ fontFamily: F.utility, fontSize: 12, letterSpacing: 2, color: "#8A9199" }}>LB</span>
         </div>
       )}
 
@@ -1251,6 +1265,7 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
                 <span style={{ color: "#8A9199", fontFamily: F.utility, fontSize: 12 }}>
                   {isStrength ? `${workout.sets}×` : `${workout.workSec}s`}
                   {e.seed !== undefined && weights[e.n] ? ` · ${weights[e.n]}lb` : ""}
+                  {isStrength && reps[e.n] ? (e.seed !== undefined && weights[e.n] ? ` × ${reps[e.n]}` : ` · ${reps[e.n]} reps`) : ""}
                 </span>
               </div>
             ))}
@@ -1282,6 +1297,7 @@ function DoneScreen({ onHome, onHistory }) {
 }
 
 function HistoryScreen({ history, profile, onBack }) {
+  const [openEx, setOpenEx] = useState(null);
   const mine = history.filter((h) => h.profile === profile);
   const totalMin = Math.round(mine.reduce((a, h) => a + (h.durationSec || 0), 0) / 60);
   // per-exercise best weight
@@ -1292,6 +1308,16 @@ function HistoryScreen({ history, profile, onBack }) {
     })
   );
   const bestList = Object.entries(best).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  // per-exercise running log — `mine` is newest-first, so entries arrive in order
+  const log = {};
+  mine.forEach((h) =>
+    (h.entries || []).forEach((e) => {
+      if (e.weight || e.reps) (log[e.name] = log[e.name] || []).push({ date: h.date, weight: e.weight, reps: e.reps });
+    })
+  );
+  const logList = Object.entries(log);
+  const fmtEntry = (en) =>
+    [en.weight ? `${en.weight} lb` : null, en.reps ? `${en.reps} reps` : null].filter(Boolean).join(" × ");
 
   return (
     <div style={S.page}>
@@ -1311,6 +1337,39 @@ function HistoryScreen({ history, profile, onBack }) {
               <div key={name} style={S.planRow}>
                 <span>{name}</span>
                 <span style={{ fontFamily: F.display, color: "#FFD338" }}>{w} LB</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {logList.length > 0 && (
+        <>
+          <SectionLabel>RUNNING LOG</SectionLabel>
+          <div style={{ display: "grid", gap: 6 }}>
+            {logList.map(([name, entries]) => (
+              <div key={name}>
+                <button
+                  className="card-btn"
+                  style={{ ...S.planRow, width: "100%", alignItems: "center", border: "none", color: "#F2F0EA", cursor: "pointer" }}
+                  onClick={() => setOpenEx(openEx === name ? null : name)}
+                >
+                  <span style={{ textAlign: "left" }}>{name}</span>
+                  <span style={{ color: "#8A9199", fontFamily: F.utility, fontSize: 12 }}>
+                    {fmtEntry(entries[0])} · {entries.length} {entries.length === 1 ? "session" : "sessions"}{" "}
+                    {openEx === name ? "▾" : "▸"}
+                  </span>
+                </button>
+                {openEx === name && (
+                  <div style={{ display: "grid", gap: 2, margin: "6px 0 4px" }}>
+                    {entries.map((en, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 12px 4px 24px" }}>
+                        <span style={{ color: "#8A9199" }}>{new Date(en.date).toLocaleDateString()}</span>
+                        <span>{fmtEntry(en)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1352,6 +1411,29 @@ const SectionLabel = ({ children }) => (
     {children}
   </div>
 );
+const Stepper = ({ label, value, inc, onChange }) => {
+  const num = value === "" || value == null ? 0 : Number(value);
+  const bump = (dir) => onChange(String(Math.max(0, Math.round((num + dir * inc) * 10) / 10)));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <button className="chip" style={{ fontSize: 20, padding: "0 18px" }} onClick={() => bump(-1)}>
+        −
+      </button>
+      <div style={{ textAlign: "center" }}>
+        <input
+          type="number"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ ...S.input, width: 72, textAlign: "center", fontSize: 20, padding: "8px 4px" }}
+        />
+        <div style={{ fontFamily: F.utility, fontSize: 12, letterSpacing: 2, color: "#8A9199", marginTop: 4 }}>{label}</div>
+      </div>
+      <button className="chip" style={{ fontSize: 20, padding: "0 18px" }} onClick={() => bump(1)}>
+        +
+      </button>
+    </div>
+  );
+};
 const Stat = ({ label, value }) => (
   <div style={{ ...S.selectCard, textAlign: "center", cursor: "default" }}>
     <div style={{ fontFamily: F.display, fontSize: 40, color: "#FFD338" }}>{value}</div>
@@ -1465,7 +1547,7 @@ button { font-family: 'Archivo', system-ui, sans-serif; }
 .chip {
   background: transparent; border: 1px solid #2A2F37; color: #8A9199;
   border-radius: 999px; padding: 10px 16px; font-size: 13px; letter-spacing: 1px;
-  min-height: 44px; display: inline-flex; align-items: center;
+  min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap;
   cursor: pointer; font-family: 'Archivo', system-ui, sans-serif;
   transition: border-color .15s ease, color .15s ease;
 }
