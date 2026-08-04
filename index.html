@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<style>html,body{margin:0;background:#14171C}</style>
+<style>:root{color-scheme:dark}html,body{margin:0;background:#14171C}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -1014,12 +1014,14 @@ function HomeScreen({ profile, focus, setFocus, mode, setMode, startWorkout, set
         ))}
       </div>
 
-      <button className="go-btn" onClick={() => startWorkout()}>
-        BUILD MY 30-MINUTE WORKOUT
-      </button>
       <p style={S.hint}>
         Every workout is freshly generated from your exercise library — dumbbells, bench, pull-up bar, ab wheel, bodyweight.
       </p>
+      <div style={S.ctaBar}>
+        <button className="go-btn" style={{ marginTop: 0 }} onClick={() => startWorkout()}>
+          BUILD MY 30-MINUTE WORKOUT
+        </button>
+      </div>
     </div>
   );
 }
@@ -1191,7 +1193,7 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
             <div style={{ fontFamily: F.display, fontSize: tv ? 96 : 64, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
               {remaining}
             </div>
-            <div style={{ fontFamily: F.utility, fontSize: tv ? 16 : 11, letterSpacing: 4, color: "#8A9199" }}>SECONDS</div>
+            <div style={{ fontFamily: F.utility, fontSize: tv ? 16 : 12, letterSpacing: 4, color: "#8A9199" }}>SECONDS</div>
           </div>
         </div>
       </div>
@@ -1264,7 +1266,11 @@ function WorkoutScreen({ workout, onQuit, onFinish, tv, setTv }) {
 
 function DoneScreen({ onHome, onHistory }) {
   return (
-    <div style={{ ...S.page, textAlign: "center", paddingTop: 80 }}>
+    <div style={{ ...S.page, textAlign: "center", paddingTop: 64 }}>
+      <svg width="72" height="72" viewBox="0 0 72 72" style={{ display: "block", margin: "0 auto 20px" }} aria-hidden="true">
+        <circle cx="36" cy="36" r="32" fill="none" stroke="#FFD338" strokeWidth="4" />
+        <path d="M22 37 L32 47 L50 27" fill="none" stroke="#FFD338" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
       <div style={{ fontFamily: F.display, fontSize: 64 }}>DONE.</div>
       <p style={{ color: "#8A9199", fontFamily: F.utility, letterSpacing: 2, marginTop: 8 }}>
         WORKOUT SAVED TO YOUR HISTORY
@@ -1337,19 +1343,19 @@ function HistoryScreen({ history, profile, onBack }) {
 // ---------- small components ----------
 const Header = ({ sub }) => (
   <div>
-    <div style={{ fontFamily: F.utility, letterSpacing: 6, fontSize: 11, color: "#FFD338" }}>THE HOME GYM</div>
+    <div style={{ fontFamily: F.utility, letterSpacing: 6, fontSize: 12, color: "#FFD338" }}>THE HOME GYM</div>
     <h1 style={{ fontFamily: F.display, fontSize: 34, margin: "6px 0 0", letterSpacing: 1 }}>{sub}</h1>
   </div>
 );
 const SectionLabel = ({ children }) => (
-  <div style={{ fontFamily: F.utility, letterSpacing: 4, fontSize: 11, color: "#8A9199", margin: "26px 0 10px" }}>
+  <div style={{ fontFamily: F.utility, letterSpacing: 4, fontSize: 12, color: "#8A9199", margin: "24px 0 12px" }}>
     {children}
   </div>
 );
 const Stat = ({ label, value }) => (
   <div style={{ ...S.selectCard, textAlign: "center", cursor: "default" }}>
     <div style={{ fontFamily: F.display, fontSize: 40, color: "#FFD338" }}>{value}</div>
-    <div style={{ fontFamily: F.utility, fontSize: 11, letterSpacing: 3, color: "#8A9199" }}>{label}</div>
+    <div style={{ fontFamily: F.utility, fontSize: 12, letterSpacing: 3, color: "#8A9199" }}>{label}</div>
   </div>
 );
 
@@ -1362,17 +1368,17 @@ const F = {
 
 const S = {
   app: { minHeight: "100vh", background: "#14171C", color: "#F2F0EA", fontFamily: F.body },
-  page: { maxWidth: 560, margin: "0 auto", padding: "28px 18px 60px" },
+  page: { maxWidth: 560, margin: "0 auto", padding: "32px 20px 64px" },
   workoutWrap: { maxWidth: 900, margin: "0 auto" },
-  topBar: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
   profileBtn: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "20px 22px",
+    padding: "20px",
     background: "#1B1F25",
     border: "1px solid #2A2F37",
-    borderRadius: 14,
+    borderRadius: 12,
     color: "#F2F0EA",
     cursor: "pointer",
     textAlign: "left",
@@ -1402,8 +1408,8 @@ const S = {
   selectCard: {
     background: "#1B1F25",
     border: "1px solid #2A2F37",
-    borderRadius: 14,
-    padding: "16px 16px",
+    borderRadius: 12,
+    padding: "16px",
     color: "#F2F0EA",
     cursor: "pointer",
     textAlign: "left",
@@ -1421,16 +1427,23 @@ const S = {
     cursor: "pointer",
     textAlign: "left",
   },
-  selected: { border: "1px solid #FFD338", background: "#22251E" },
+  selected: { border: "1px solid #FFD338", background: "#22251E", boxShadow: "inset 0 0 0 1px #FFD338" },
   cardSub: { fontSize: 12, color: "#8A9199", marginTop: 4 },
   hint: { color: "#8A9199", fontSize: 13, lineHeight: 1.5, marginTop: 14 },
   planRow: {
     display: "flex",
     justifyContent: "space-between",
-    padding: "10px 12px",
+    padding: "12px",
     background: "#1B1F25",
     borderRadius: 8,
     fontSize: 14,
+  },
+  ctaBar: {
+    position: "sticky",
+    bottom: 0,
+    marginTop: 24,
+    padding: "12px 0 16px",
+    background: "linear-gradient(rgba(20,23,28,0), #14171C 45%)",
   },
   timerCenter: {
     position: "absolute",
@@ -1445,23 +1458,33 @@ const S = {
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600&family=Archivo+Black&display=swap');
 * { box-sizing: border-box; }
-body { margin: 0; background: #14171C; }
-.card-btn { transition: transform .08s ease, border-color .15s ease; }
+body { margin: 0; background: #14171C; -webkit-tap-highlight-color: transparent; }
+button { font-family: 'Archivo', system-ui, sans-serif; }
+.card-btn { transition: transform .08s ease, border-color .15s ease, filter .15s ease; }
 .card-btn:active { transform: scale(.98); }
 .chip {
   background: transparent; border: 1px solid #2A2F37; color: #8A9199;
-  border-radius: 999px; padding: 8px 14px; font-size: 12px; letter-spacing: 1px;
+  border-radius: 999px; padding: 10px 16px; font-size: 13px; letter-spacing: 1px;
+  min-height: 44px; display: inline-flex; align-items: center;
   cursor: pointer; font-family: 'Archivo', system-ui, sans-serif;
+  transition: border-color .15s ease, color .15s ease;
 }
-.chip:hover { border-color: #FFD338; color: #F2F0EA; }
 .go-btn {
-  display: block; width: 100%; margin-top: 30px; padding: 18px;
-  background: #FFD338; color: #14171C; border: none; border-radius: 14px;
+  display: block; width: 100%; margin-top: 32px; padding: 18px;
+  background: #FFD338; color: #14171C; border: none; border-radius: 12px;
   font-family: 'Archivo Black', 'Arial Black', sans-serif; font-size: 17px; letter-spacing: 1.5px;
-  cursor: pointer; transition: transform .08s ease;
+  cursor: pointer; transition: transform .08s ease, filter .15s ease;
 }
 .go-btn:active { transform: scale(.98); }
+@media (hover: hover) {
+  .chip:hover { border-color: #FFD338; color: #F2F0EA; }
+  .card-btn:hover { filter: brightness(1.15); }
+  .go-btn:hover { filter: brightness(1.05); }
+}
 input:focus { border-color: #FFD338 !important; }
+.chip:focus-visible, .card-btn:focus-visible, .go-btn:focus-visible, input:focus-visible {
+  outline: 2px solid #FFD338; outline-offset: 2px;
+}
 @keyframes poseA { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes poseB { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
 .pose-a { animation: poseA 1.4s steps(1, end) infinite; }
